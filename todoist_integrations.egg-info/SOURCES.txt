@@ -1,0 +1,9 @@
+setup.py
+todoist_integrations/__init__.py
+todoist_integrations/ninety_day_to_todoist.py
+todoist_integrations.egg-info/PKG-INFO
+todoist_integrations.egg-info/SOURCES.txt
+todoist_integrations.egg-info/dependency_links.txt
+todoist_integrations.egg-info/not-zip-safe
+todoist_integrations.egg-info/requires.txt
+todoist_integrations.egg-info/top_level.txt
