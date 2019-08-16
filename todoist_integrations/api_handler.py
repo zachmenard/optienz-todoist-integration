@@ -1,83 +1,101 @@
-import xlrd, re
-from tkinter import *
-from tkinter import filedialog, simpledialog
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Aug 16 12:51:36 2019
+
+@author: zachm
+"""
+
 from todoist.api import TodoistAPI
-import datetime
-from time import strftime, gmtime
+from todoist.models import *
+from .xl_handler import xldate_to_todoist
+import re
+import tkinter as tk
+from tkinter import ttk
+from collections.abc import Iterable
 
-def minimalist_xldate_as_datetime(xldate, datemode=0):
-    # datemode: 0 for 1900-based, 1 for 1904-based
-    return (
-        datetime.datetime(1899, 12, 30)
-        + datetime.timedelta(days=xldate + 1462 * datemode)
-        )
-def xldate_to_todoist(xldate, datemod=0):
-    dt = minimalist_xldate_as_datetime(xldate, datemod)
-    # Mon 07 Aug 2006 12:34:56 +0000
-    out_date = {"string": dt.strftime("%m/%d/%Y")}
-    return out_date
+sticky_all = tk.N+tk.S+tk.E+tk.W
+todoist_types = (Collaborator, CollaboratorState, Filter,
+ GenericNote, Item, Label, LiveNotification, Model, Note, Project,
+ ProjectNote, Reminder)
 
-def open_file(path='',title="Select File"):
-    if (path==''):
-        root = Tk()
-        fname =  \
-        filedialog.askopenfilename(\
-            initialdir = "/", \
-            title = title,\
-            filetypes = (("Excel","*.xls*"),("All","*")))
-        root.destroy()
-    else:
-        fname=path
-    return xlrd.open_workbook(fname)
+class main_window(object):
+    def __init__(self,api=None):
+        self.root = tk.Tk()
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        self.build_widgets()
+        if api != None:
+            self.load_api(api)
+        self.root.mainloop()
+    def build_widgets(self):
+        self.pane = tk.Frame(self.root)
+        self.pane.columnconfigure(0, weight=1)
+        self.pane.rowconfigure(0, weight=1)
+        self.pane.grid(row=0,column=0,sticky=sticky_all)
+        self.tree = ttk.Treeview(self.pane)
+        self.tree.grid(row=0,column=0,sticky=sticky_all)
+        self.btn_load=tk.Button(self.pane)
+        
+    def load_api(self,api):
+        self.tree.delete(*self.tree.get_children())
+        p_node = self.tree.insert('','end',text='API')
+        self.add_nodes(p_node, api.state)
+    def add_nodes(self,p_node, dict_obj):
+        if isinstance(dict_obj,dict):
+            for key in dict_obj:
+                item = dict_obj[key]
+                c_node = self.tree.insert(p_node,'end',text=key)
+                if isinstance(item,Iterable):                    
+                    self.add_nodes(c_node,item)
+                else:
+                    self.tree.item(c_node,text=key + ":\t" + str(item))
+        elif isinstance(dict_obj, todoist_types):
+            old_text = self.tree.item(p_node)['text']
+            try:
+                self.tree.item(p_node,text=old_text + ' ' + \
+                               dict_obj.data['name'])
+                
+            except:
+                try:
+                    self.tree.item(p_node,text=old_text + ' ' + \
+                               dict_obj.data['content'])
+                except:
+                    self.tree.item(p_node,text=old_text)
+            self.add_nodes(p_node, dict_obj.data)
+        elif isinstance(dict_obj,list):
+            l_node = self.tree.insert(p_node,'end',text='List')
+            for i,item in enumerate(dict_obj):
+                c_node = self.tree.insert(l_node,'end',text='['+str(i)+']')
+                self.add_nodes(c_node,item)
+        else:
+            c_node = self.tree.insert(p_node,'end',text=str(dict_obj))
+            
 
-def parse_file(wb):
-    #make sure we have a workbook
-    if not isinstance(wb,xlrd.book.Book):
-        raise ValueError('The parse_file function can only be called on an Excel Workbook (class xlrd.book.Book).')
-
-    #Create output container
-    projects={}
     
-    #Get list of tabs (projects)
-    lstProjects = wb.sheets()
+                        
+            
+class client_api(TodoistAPI):
+    def __init__(self,key):
+        super().__init__(token=key)
+    def visualize(self):
+        main_window(self)
+    def delete_empty_items(self):
+        n = 0
+        for item in self.state['items']:
+            if item['content']=='':
+                print("Deleting: " + str(item['id']))
+                item.delete()
+                n+=1
+            if n==100:
+                self.commit()
+        self.commit()
+        
 
-    #Initial coordinates (zero-indexed)
-    start_row, start_col = 4, 1
-    
-    #Loop through projects and get records
-    for i in lstProjects:
-        projContents=[]
-        for r in range(start_row, i.nrows-1):
-            content = get_cell(i,r,start_col+2)
-            if (content != None) and (content != '') :
-                projContents.append({
-                    "ref_no":get_cell(i,r,start_col),
-                    "category":get_cell(i,r,start_col+1),
-                    "content":content,
-                    "assigned":get_cell(i,r,start_col+3),
-                    "due_date":get_cell(i,r,start_col+4),
-                    "status":get_cell(i,r,start_col+5),
-                    "notes":get_cell(i,r,start_col+6)
-                    })
-        #Print for debugging
-        '''for p in projContents:            
-            print("=== " + i.name + " ===")
-            for k in p:
-                print("\t  - "+k+": "+str(p[k]))
-        '''
-        projects[i.name]=projContents
-    return projects
-def get_cell(sht,row,col):
-    val=None
-    try:
-        val=sht.cell_value(row,col)
-    except Exception:
-        pass
-    return val
-
-def open_api(key='ef4f8584f54b60f15b12597c1419f8e761b33427'):
+def open_api(key=None):
     #creates an api link
-    api = TodoistAPI(key)
+    if key == None:
+        key = 'ef4f8584f54b60f15b12597c1419f8e761b33427'
+    api = client_api(key)
     api.sync()
     return api
 
@@ -193,13 +211,15 @@ def add_task(api, proj, content='', overwrite=False, do_commit=True, **kwargs):
         api.commit()
     return item
     
-def filter_by_assignment(task_list, assigned_to='*'):
+def filter_by_assignment(task_list, assigned_to=None):
     '''Returns a subset of the task_list parameter containing only those
     tasks which are assigned to the person listed in the assigned_to argument.
     If '*' is passed in the assigned_to argument or it is left blank all tasks
     are returned.'''
+    if assigned_to==None:
+        assigned_to = '*'
     assigned_to = str(assigned_to).strip()
-    if (assigned_to =='*'):
+    if (assigned_to=='*'):
         return task_list
     else:
         filtered_tasks = []
@@ -254,15 +274,3 @@ def sync_project_to_app(proj_name, task_list, assigned_to="*", proj_params={},\
         #print("Committing project "+str(proj_name)+"...")
         
     return api
-def get_string(prompt="Input String"):
-    root = Tk()
-    str_out = simpledialog.askstring(title = "User input",prompt = prompt)
-    root.destroy()
-    return str_out
-
-def run():
-    api_key = get_string("Enter your todoist API Key (https://todoist.com/prefs/integrations -> API Token)")
-    initials = get_string("Enter initials for filter (use * for all)")
-    proj_list = parse_file(open_file('',"Select 90-Day Plan to Import"))
-    api = open_api(api_key)
-    sync_project_to_app(proj_name=proj_list, task_list=None, assigned_to=initials,overwrite_proj=False,api=api)

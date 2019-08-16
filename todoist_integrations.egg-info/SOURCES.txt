@@ -1,6 +1,9 @@
+README.md
 setup.py
 todoist_integrations/__init__.py
-todoist_integrations/ninety_day_to_todoist.py
+todoist_integrations/api_handler.py
+todoist_integrations/ninety_day.py
+todoist_integrations/xl_handler.py
 todoist_integrations.egg-info/PKG-INFO
 todoist_integrations.egg-info/SOURCES.txt
 todoist_integrations.egg-info/dependency_links.txt
