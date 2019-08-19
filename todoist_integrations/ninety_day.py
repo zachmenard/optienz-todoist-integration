@@ -1,23 +1,5 @@
-
-import tkinter as tk
 from .api_handler import *
 from .xl_handler import *
-from tkinter import filedialog, simpledialog
-
-
-
-def get_string(root=None, prompt="Input String"):
-    destroy = False
-    if root == None:
-        root =tk.Tk()
-        destroy = True
-    root.withdraw()
-    str_out = simpledialog.askstring(title = "User input",prompt = prompt,\
-                                     parent=root)
-    if destroy:
-        root.destroy()
-    return str_out
-
 
 def parse_file(wb):
     #make sure we have a workbook
@@ -63,21 +45,21 @@ def parse_file(wb):
 
 
 def run():
-    api_key = get_string(\
-                         prompt="Enter your todoist API Key \
-                         (https://todoist.com/prefs/integrations -> \
-                         API Token)")
+    
     initials = get_string(prompt="Enter initials for filter (use * for all)")
-    proj_list = parse_file(\
+    try:
+        proj_list = parse_file(\
                            open_xl_workbook(\
                                 title="Select 90-Day Plan to Import"))
-    api = open_api(api_key)
+    except:
+        print("Aborting operation, no file selected")
+        return
+    api = open_api()
     print("API Key [" + str(api_key) + "] used...")
     print("Connected to user [" + api.state['user']['full_name'] + "]...")
     
-    sync_project_to_app(\
+    api.sync_project_to_app(\
                         proj_name=proj_list, \
                         task_list=None, \
                         assigned_to=initials,\
-                        overwrite_proj=False,\
-                        api=api)
+                        overwrite_proj=False)

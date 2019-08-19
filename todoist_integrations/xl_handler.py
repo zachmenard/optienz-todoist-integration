@@ -25,7 +25,6 @@ def open_xl_workbook(root=None, path='',title="Select File"):
     if root == None:        
         root = Tk()
         destroy = True
-    root.mainloop()
     root.withdraw()
     if (path==''):
         fname =  \
